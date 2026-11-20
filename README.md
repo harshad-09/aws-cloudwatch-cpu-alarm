@@ -1,212 +1,141 @@
-# ☁️ AWS EC2 CPU Monitoring & Email Alerting
+# ☁️ AWS CloudWatch: EC2 High CPU Alarm with Email Alerts
 
-> A hands-on AWS monitoring project that tracks EC2 CPU utilization with Amazon CloudWatch and sends automated email notifications through Amazon SNS when CPU usage exceeds a configured threshold.
+A hands-on monitoring and alerting project on AWS. A CloudWatch alarm watches the CPU of an EC2 instance and sends an email through Amazon SNS when CPU utilization goes above 50%. I tested the full flow by generating real load with a Python stress script.
 
-<p align="center">
-  <img src="screenshots/images/cloudwatch-cpu-spike.png" alt="CloudWatch CPU utilization spike" width="850" />
-</p>
 
----
 
-## 📌 Project Overview
+## 📌 Project overview
 
-Monitoring is an important part of cloud operations and DevOps.
-
-In this project, I configured a CloudWatch alarm to monitor an EC2 instance's CPU utilization and notify me by email when CPU usage goes above **50%**.
-
-To validate the setup, I generated CPU load on the EC2 instance using a Python script, observed the metric spike, confirmed that the alarm changed from **OK** to **ALARM**, and verified that an SNS email notification was received.
-
----
-
-## 🎯 Objectives
-
-- 📈 Monitor EC2 CPU utilization with Amazon CloudWatch.
-- 🚨 Create an alarm for CPU utilization above 50%.
-- 📬 Deliver alarm notifications using Amazon SNS email subscription.
-- 🧪 Simulate CPU load and verify the complete alerting workflow.
-
----
+Monitoring is a core part of DevOps and SRE work. The goal of this project is to set up automatic alerting so that a team is notified as soon as a server is under heavy load, instead of finding out from users.
 
 ## 🏗️ Architecture
 
-```mermaid
-flowchart TD
-    A[🖥️ EC2 Ubuntu Instance] -->|CPUUtilization metric| B[📊 Amazon CloudWatch]
-    B --> C{🚨 CPU average > 50%?}
-    C -->|Yes| D[CloudWatch Alarm: ALARM]
-    C -->|No| E[Alarm remains OK]
-    D --> F[📣 Amazon SNS Topic]
-    F --> G[📧 Email Notification]
+```
+EC2 instance (Ubuntu, "server")
+        |
+        |  publishes CPUUtilization metric every 5 minutes
+        v
+Amazon CloudWatch (metric: AWS/EC2 CPUUtilization)
+        |
+        |  alarm evaluates: Average > 50% ?
+        v
+CloudWatch Alarm: EC2-High-CPU-Alarm
+        |
+        |  state changes OK -> ALARM
+        v
+Amazon SNS topic
+        |
+        v
+Email notification
 ```
 
-### 🔄 Workflow
+## How the project works
 
-1. 🖥️ The EC2 instance publishes CPU utilization metrics to CloudWatch.
-2. 📊 CloudWatch evaluates the metric using the alarm's configured period and statistic.
-3. 🚨 If average CPU utilization is greater than **50%**, the alarm enters the `ALARM` state.
-4. 📣 The alarm publishes a notification to the configured SNS topic.
-5. 📧 SNS sends an email to the confirmed subscription address.
-6. 🧪 A CPU stress test is used to validate the end-to-end flow.
+1. **EC2 sends metrics.** The Ubuntu EC2 instance automatically reports its `CPUUtilization` metric to CloudWatch in the `AWS/EC2` namespace. With basic monitoring this happens every 5 minutes, with no agent to install.
+2. **CloudWatch evaluates the alarm.** The alarm `EC2-High-CPU-Alarm` checks the Average CPU over each 300-second period. If the value is greater than 50, the alarm changes from **OK** to **ALARM**.
+3. **SNS delivers the notification.** The alarm's ALARM action publishes a message to an SNS topic. The topic has an email subscription, so the message arrives in my inbox.
+4. **Load test proves it end to end.** I ran `stress.py` on the instance to push CPU to about 100%. The graph spiked, the alarm fired, and the email arrived.
 
----
+## Tech stack
 
-## 🧰 AWS Services & Tools
-
-| Service / Tool | Purpose |
+| Service / tool | Purpose |
 |---|---|
-| 🖥️ Amazon EC2 (Ubuntu) | Instance being monitored |
-| 📊 Amazon CloudWatch | Metrics, graph, and alarm evaluation |
-| 🚨 CloudWatch Alarm | Detects CPU utilization above the threshold |
-| 📣 Amazon SNS | Sends alarm notifications to subscribers |
-| 🐍 Python 3 | CPU load-generation script for testing |
-| 🐧 Linux | Run the test script on the EC2 instance |
-| 🌏 AWS Region | `ap-south-1` (Mumbai) |
+| Amazon EC2 (Ubuntu) | The server being monitored |
+| Amazon CloudWatch | Metrics, graphs, and the alarm |
+| Amazon SNS | Sends the email notification |
+| Python 3 | CPU stress script to simulate load |
+| Region | `ap-south-1` (Mumbai) |
 
----
-
-## ⚙️ Alarm Configuration
+## Alarm configuration
 
 | Setting | Value |
 |---|---|
 | Alarm name | `EC2-High-CPU-Alarm` |
-| Metric namespace | `AWS/EC2` |
-| Metric name | `CPUUtilization` |
-| Dimension | Monitored EC2 `InstanceId` |
+| Namespace / Metric | `AWS/EC2` / `CPUUtilization` |
+| Dimension | `InstanceId` of the monitored instance |
 | Statistic | Average |
 | Period | 300 seconds (5 minutes) |
-| Threshold | Greater than 50% |
-| Evaluation | 1 out of 1 datapoints |
+| Condition | Greater than 50, 1 out of 1 datapoints |
 | Missing data | Treated as missing |
-| Alarm action | Publish notification to SNS topic |
+| ALARM action | Publish to SNS topic (email subscription) |
 
----
+## Step-by-step setup
 
-## 🚀 Implementation Steps
+1. **Launch an EC2 instance.** Create an Ubuntu instance named `server` in `ap-south-1` and connect to it over SSH.
+2. **Create an SNS topic.** Add an email subscription, then confirm it from the confirmation email AWS sends. Alerts will not arrive until the subscription is confirmed.
+3. **Create the CloudWatch alarm.** Select the `CPUUtilization` metric for the instance, set the statistic to Average, the period to 5 minutes, and the threshold to greater than 50. Set the ALARM action to the SNS topic.
+4. **Check the baseline.** CPU should be near idle and the alarm should show **OK**.
+5. **Run the stress script** on the instance:
+   ```bash
+   python3 scripts/stress.py 2 600
+   ```
+6. **Watch the metric.** In CloudWatch, CPU climbs to about 100%.
+7. **Confirm the alert.** The alarm moves to **In alarm** and the email arrives.
 
-### 1️⃣ Launch the EC2 Instance
+## Testing and results
 
-- Launch an Ubuntu EC2 instance in the Mumbai region (`ap-south-1`).
-- Connect to the instance using SSH.
-- Confirm that the instance is running and reporting metrics.
+The alarm went from OK to ALARM at **15:56:28 UTC** (19 Nov 2026), after the average CPU reached about 99.99%, and the email notification arrived right after.
 
-### 2️⃣ Create an SNS Topic and Email Subscription
+### 1. Alarm in OK state (before the test)
 
-- Create an SNS topic for CloudWatch alarm notifications.
-- Add an email subscription.
-- Confirm the subscription using the confirmation email from AWS.
+![CloudWatch alarm in OK state](screenshots/images/cloudwatch-alarm-ok.png)
 
-> ⚠️ Email notifications will not be delivered until the SNS subscription is confirmed.
+### 2. Running the stress script on EC2
 
-### 3️⃣ Create the CloudWatch Alarm
+![EC2 stress script running](screenshots/images/ec2-stress.png)
 
-- Select the EC2 `CPUUtilization` metric for the instance.
-- Configure the statistic as **Average** and period as **5 minutes**.
-- Set the threshold to **Greater than 50%**.
-- Configure **1 out of 1 datapoints** for the alarm transition.
-- Select the SNS topic as the alarm notification action.
+### 3. CPU spiking to about 100%
 
-### 4️⃣ Generate CPU Load
+![CloudWatch CPU spike](screenshots/images/cloudwatch-cpu-spike.png)
 
-Use the included Python script to simulate CPU load on the instance.
+### 4. Alarm in ALARM state
 
-```bash
-python3 scripts/stress.py 2 600
-```
+![CloudWatch alarm in alarm](screenshots/images/cloudwatch-alarm-in-alarm.png)
 
-**Arguments:**
-
-- `2` — Number of CPU worker processes
-- `600` — Duration in seconds (10 minutes)
-
-⚠️ Use the script only on an instance you own or are authorized to test. CPU load can affect performance and may incur AWS charges.
-
-### 5️⃣ Observe and Validate
-
-- 📈 Watch the CPU utilization metric in CloudWatch.
-- 🚨 Confirm the alarm transitions from `OK` to `ALARM` after the threshold is breached.
-- 📧 Confirm the SNS email arrives.
-- 🟢 After the load ends, observe CPU returning toward baseline and the alarm recovering when its conditions are met.
-
----
-
-## 🧪 Test Results & Screenshots
-
-The monitoring workflow was tested by generating CPU load on the EC2 instance. CloudWatch detected CPU utilization above the configured threshold, the alarm entered `ALARM`, and the SNS email notification was received.
-
-### 🟢 Alarm in OK State
-
-![CloudWatch alarm OK state](screenshots/images/cloudwatch-alarm-ok.png)
-
-### 🐍 CPU Stress Test Running on EC2
-
-![CPU stress test](screenshots/images/ec2-stress.png)
-
-### 📈 CPU Utilization Spike
-
-![CloudWatch CPU utilization spike](screenshots/images/cloudwatch-cpu-spike.png)
-
-### 🚨 CloudWatch Alarm in ALARM State
-
-![CloudWatch alarm in ALARM state](screenshots/images/cloudwatch-alarm-in-alarm.png)
-
-### 📧 SNS Email Alert Received
+### 5. SNS email alert received
 
 ![SNS email alert](screenshots/images/sns-email-alert.png)
 
----
+## Troubleshooting notes
 
-## 🧯 Troubleshooting Notes
+- **No email received:** the SNS subscription must be confirmed first. Check the Subscriptions page for the status "Confirmed".
+- **Alarm stays in OK:** basic monitoring reports every 5 minutes, so the alarm can take up to one or two periods to react after the load starts.
+- **Alarm shows "Insufficient data":** the instance may be stopped or not reporting metrics yet.
 
-| Issue | Possible Solution |
-|---|---|
-| 📭 Email not received | Confirm the SNS email subscription is in `Confirmed` status and check spam/junk folders. |
-| 🟢 Alarm remains OK | With 5-minute metrics, allow time for metric publication and alarm evaluation. Verify that CPU actually exceeds the threshold. |
-| ⚠️ Insufficient data | Confirm the EC2 instance is running and has begun publishing metrics. |
-| 📉 Metric is not visible | Check the AWS region and select the correct instance ID in CloudWatch metrics. |
+## What I learned
 
----
+- How CloudWatch metrics, namespaces, dimensions, periods, and statistics work together to drive alarm evaluation.
+- The three alarm states (OK, ALARM, Insufficient data) and how a metric crossing a threshold triggers a state change.
+- How to connect CloudWatch alarms to SNS so alerts reach people automatically.
+- Why SNS subscriptions need to be confirmed before they deliver messages.
+- How to validate monitoring by simulating real load, instead of just trusting the configuration.
+- How basic monitoring (5-minute data) differs from detailed monitoring (1-minute data) and why alert delay depends on the period.
+- Security habits: hide account IDs in screenshots, and use an IAM user with MFA instead of the root account for daily work.
+- How to document a project clearly with a README, screenshots, and a repeatable setup.
 
-## 📚 Key Learnings
+## Future improvements
 
-- 📊 CloudWatch metrics, namespaces, dimensions, statistics, and periods.
-- 🚨 Alarm states: `OK`, `ALARM`, and `INSUFFICIENT_DATA`.
-- 🔔 Connecting CloudWatch alarms to SNS for automated notification delivery.
-- 📬 SNS email subscription confirmation.
-- 🧪 Validating monitoring through a controlled CPU load test.
-- ⏱️ How metric periods affect alerting latency.
-- 🔐 Basic AWS security practices, including avoiding root-user access for routine work and enabling MFA.
+- Build the whole setup with **Terraform** so it is repeatable and version controlled.
+- Enable **detailed monitoring** for 1-minute metrics and faster alerts.
+- Add alarms for memory and disk using the **CloudWatch Agent**.
+- Add a **CloudWatch dashboard** for CPU, network, and disk in one view.
+- Send alerts to Slack or Microsoft Teams through SNS and Lambda.
+- Trigger an **Auto Scaling** action when the alarm fires.
 
----
+## Cleanup
 
-## 🔮 Future Improvements
+To avoid charges, delete resources you no longer need:
 
-- 🏗️ Provision the infrastructure with Terraform.
-- ⏱️ Enable detailed monitoring for 1-minute metrics (additional charges may apply).
-- 🧠 Monitor memory and disk metrics using the CloudWatch Agent.
-- 📊 Create a CloudWatch dashboard for CPU, network, memory, and disk metrics.
-- 💬 Add Slack or Microsoft Teams notifications using an integration (for example, SNS with Lambda).
-- ⚖️ Explore automated scaling or remediation actions triggered by alarms.
+- Terminate the EC2 instance
+- Delete the CloudWatch alarm
+- Delete the SNS topic and subscription
 
----
+## Repository structure
 
-## 💰 Cleanup / Avoid Unnecessary Charges
-
-When finished testing, review and remove resources you no longer need:
-
-- 🖥️ Terminate the EC2 instance if it is no longer required.
-- 🚨 Delete the CloudWatch alarm.
-- 📣 Delete the SNS topic and subscription if no longer needed.
-- 💾 Review associated storage (such as EBS volumes and snapshots) and other billable resources.
-
----
-
-## 📁 Repository Structure
-
-```text
+```
 aws-cloudwatch-cpu-alarm/
 ├── README.md
 ├── .gitignore
-├── push.sh
 ├── scripts/
 │   └── stress.py
 └── screenshots/
@@ -218,19 +147,6 @@ aws-cloudwatch-cpu-alarm/
         └── sns-email-alert.png
 ```
 
----
+## Author
 
-## 🏷️ GitHub Topics
-
-`aws` · `amazon-ec2` · `amazon-cloudwatch` · `amazon-sns` · `monitoring` · `alerting` · `devops` · `cloud-computing` · `python` · `linux`
-
----
-
-## 👨‍💻 Author
-
-**Harshad Gaikwad**  
-Aspiring Cloud / DevOps Engineer
-
----
-
-⭐ If you find this project useful, feel free to star the repository!
+**Harshad**, aspiring DevOps / Cloud engineer. [GitHub](https://github.com/harshad-09)
