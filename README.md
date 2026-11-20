@@ -75,10 +75,6 @@ Email notification
 6. **Watch the metric.** In CloudWatch, CPU climbs to about 100%.
 7. **Confirm the alert.** The alarm moves to **In alarm** and the email arrives.
 
-## Testing and results
-
-The alarm went from OK to ALARM at **15:56:28 UTC** (19 Nov 2026), after the average CPU reached about 99.99%, and the email notification arrived right after.
-
 ### 1. Alarm in OK state (before the test)
 
 ![CloudWatch alarm in OK state](screenshots/images/cloudwatch-alarm-ok.png)
