@@ -6,7 +6,13 @@ A hands-on monitoring and alerting project on AWS. A CloudWatch alarm watches th
 
 ##  Project overview
 
+## Project overview
+
 Monitoring is a core part of DevOps and SRE work. The goal of this project is to set up automatic alerting so that a team is notified as soon as a server is under heavy load, instead of finding out from users.
+
+- An EC2 instance sends its CPU metric to CloudWatch, which watches it with an alarm set at 50%.
+- When the threshold is crossed, the alarm triggers Amazon SNS, which sends an email alert.
+- I tested the full flow by generating real load with a Python stress script.
 
 ## 🏗️ Architecture
 
