@@ -4,7 +4,7 @@ A hands-on monitoring and alerting project on AWS. A CloudWatch alarm watches th
 
 
 
-## 📌 Project overview
+##  Project overview
 
 Monitoring is a core part of DevOps and SRE work. The goal of this project is to set up automatic alerting so that a team is notified as soon as a server is under heavy load, instead of finding out from users.
 
